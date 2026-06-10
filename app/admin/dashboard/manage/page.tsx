@@ -18,8 +18,21 @@ interface Prompt {
   image_url?: string;
   is_trending: boolean;
   created_at: string;
+  category_id?: string;
   categories?: { name: string };
 }
+
+const CATEGORIES = [
+  { label: "👦 Boys", value: "Boys", slug: "boys", id: "3d6eba72-e92c-4e05-a256-5272f56d4d4c" },
+  { label: "👧 Girls", value: "Girls", slug: "girls", id: "1151466f-9ae6-4c02-bf6d-ec73388bedd0" },
+  { label: "🎌 Anime", value: "Anime", slug: "anime", id: "55e9bba9-2707-4ca1-89bb-4a29ad54e5ab" },
+  { label: "🧸 Chibi", value: "Chibi", slug: "chibi", id: "5e81431f-39df-4870-8732-3d9f715cef52" },
+  { label: "🎮 Gaming", value: "Gaming", slug: "gaming", id: "824c3cd3-2ea7-45dd-a1ff-ae7d784e43da" },
+  { label: "💼 Professional", value: "Professional", slug: "professional", id: "035e9808-1101-4fcc-a737-b0f42e21e63b" },
+  { label: "👶 Kids", value: "Kids", slug: "kids", id: "2d54b265-1599-4949-8c3f-b278c446cdac" },
+  { label: "🎨 Cartoon", value: "Cartoon", slug: "cartoon", id: "afa7bf76-c4e0-4008-9ab2-e73ab00df041" },
+  { label: "📸 Realistic", value: "Realistic", slug: "realistic", id: "21a6b9dc-5f77-4cc3-94f6-20bc74fc3eb5" },
+];
 
 export default function ManagePromptsPage() {
   const router = useRouter();
@@ -30,7 +43,9 @@ export default function ManagePromptsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPromptText, setEditPromptText] = useState("");
   const [editTitle, setEditTitle] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [editCategoryId, setEditCategoryId] = useState("");
+const [editTrending, setEditTrending] = useState(false);
+const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const auth = localStorage.getItem("admin_auth");
@@ -44,7 +59,7 @@ export default function ManagePromptsPage() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("prompts")
-        .select("id, title, prompt_text, image_url, is_trending, created_at, categories(name)")
+        .select("id, title, prompt_text, image_url, is_trending, created_at, category_id, categories(name)")
         .order("created_at", { ascending: false });
 
       if (!error && data) {
@@ -79,27 +94,44 @@ export default function ManagePromptsPage() {
   };
 
   const handleEdit = (prompt: Prompt) => {
-    setEditingId(prompt.id);
-    setEditTitle(prompt.title);
-    setEditPromptText(prompt.prompt_text);
-  };
+  setEditingId(prompt.id);
+  setEditTitle(prompt.title);
+  setEditPromptText(prompt.prompt_text);
+  setEditCategoryId(prompt.category_id || "");
+  setEditTrending(prompt.is_trending);
+};
 
   const handleSaveEdit = async (id: string) => {
     setSaving(true);
     const supabase = createClient();
-    const { error } = await supabase
-      .from("prompts")
-      .update({ title: editTitle, prompt_text: editPromptText })
-      .eq("id", id);
+   const { error } = await supabase
+  .from("prompts")
+  .update({
+    title: editTitle,
+    prompt_text: editPromptText,
+    category_id: editCategoryId,
+    is_trending: editTrending,
+  })
+  .eq("id", id);
 
     if (error) {
       toast.error("Update failed!");
     } else {
       toast.success("Prompt updated!");
       setPrompts((prev) =>
-        prev.map((p) =>
-          p.id === id ? { ...p, title: editTitle, prompt_text: editPromptText } : p
-        )
+        prev.map((p) => {
+          if (p.id === id) {
+            const cat = CATEGORIES.find((c) => c.id === editCategoryId);
+            return {
+              ...p,
+              title: editTitle,
+              prompt_text: editPromptText,
+              category_id: editCategoryId,
+              categories: { name: cat?.value || p.categories?.name || "" },
+            };
+          }
+          return p;
+        })
       );
       setEditingId(null);
     }
@@ -117,7 +149,6 @@ export default function ManagePromptsPage() {
       const supabase = createClient();
       toast.loading("Replacing image...");
 
-      // Delete old image
       if (oldImageUrl) {
         const fileName = oldImageUrl.split("/").pop();
         if (fileName) {
@@ -125,7 +156,6 @@ export default function ManagePromptsPage() {
         }
       }
 
-      // Upload new image
       const fileExt = file.name.split(".").pop();
       const fileName = `${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
@@ -191,7 +221,6 @@ export default function ManagePromptsPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Search */}
         <div className="relative mb-6">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -202,7 +231,6 @@ export default function ManagePromptsPage() {
           />
         </div>
 
-        {/* Loading */}
         {loading && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
@@ -217,7 +245,6 @@ export default function ManagePromptsPage() {
           </div>
         )}
 
-        {/* Prompts Grid */}
         {!loading && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {filtered.map((prompt) => (
@@ -242,7 +269,6 @@ export default function ManagePromptsPage() {
                     </div>
                   )}
 
-                  {/* Trending badge */}
                   {prompt.is_trending && (
                     <div className="absolute top-2 left-2">
                       <span className="bg-gradient-to-r from-orange-500 to-rose-500 text-white text-xs font-bold px-2 py-1 rounded-full">
@@ -251,7 +277,6 @@ export default function ManagePromptsPage() {
                     </div>
                   )}
 
-                  {/* Category badge */}
                   {prompt.categories?.name && (
                     <div className="absolute bottom-2 left-2">
                       <span className="bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-full">
@@ -261,22 +286,55 @@ export default function ManagePromptsPage() {
                   )}
                 </div>
 
-                {/* Edit Section */}
+                {/* Content */}
                 <div className="p-3 flex flex-col flex-1">
                   {editingId === prompt.id ? (
                     <div className="space-y-2 flex-1">
+                      {/* Title */}
                       <input
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
                         className="w-full bg-secondary rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 ring-primary"
                         placeholder="Title"
                       />
+                      {/* Prompt Text */}
                       <textarea
                         value={editPromptText}
                         onChange={(e) => setEditPromptText(e.target.value)}
                         className="w-full bg-secondary rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 ring-primary resize-none h-20"
                         placeholder="Prompt text..."
                       />
+                      {/* Category Select */}
+                      <div className="flex flex-wrap gap-1">
+                        {CATEGORIES.map((cat) => (
+                          <button
+                            key={cat.id}
+                            onClick={() => setEditCategoryId(cat.id)}
+                            className={cn(
+                              "px-2 py-1 rounded-full text-xs font-medium transition-all border",
+                              editCategoryId === cat.id
+                                ? "bg-violet-600 text-white border-violet-600"
+                                : "bg-transparent border-border text-muted-foreground hover:border-violet-500"
+                            )}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Trending Toggle */}
+<div className="flex items-center gap-2">
+  <input
+    type="checkbox"
+    id={`trending-${prompt.id}`}
+    checked={editTrending}
+    onChange={(e) => setEditTrending(e.target.checked)}
+    className="w-3.5 h-3.5 accent-purple-600"
+  />
+  <label htmlFor={`trending-${prompt.id}`} className="text-xs text-muted-foreground">
+    Mark as Trending 🔥
+  </label>
+</div>
+                      {/* Save/Cancel */}
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleSaveEdit(prompt.id)}
@@ -302,7 +360,6 @@ export default function ManagePromptsPage() {
                         {prompt.prompt_text}
                       </p>
 
-                      {/* Action Buttons */}
                       <div className="flex gap-1.5">
                         <button
                           onClick={() => handleEdit(prompt)}

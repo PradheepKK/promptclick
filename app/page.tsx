@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/navbar";
 import PromptCard from "@/components/prompt-card";
 import CategoryFilter from "@/components/category-filter";
@@ -40,7 +41,7 @@ const CATEGORY_MAP: { [key: string]: string } = {
 };
 
 export default function HomePage() {
-  const [activeCategory, setActiveCategory] = useState("all");
+  const router = useRouter();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [savedIds, setSavedIds] = useState<string[]>(() => {
@@ -55,7 +56,7 @@ export default function HomePage() {
       setLoading(true);
       const supabase = createClient();
 
-      let query = supabase
+      const { data, error } = await supabase
         .from("prompts")
         .select(`
           id,
@@ -67,15 +68,6 @@ export default function HomePage() {
           categories (name, slug)
         `)
         .order("created_at", { ascending: false });
-
-      if (activeCategory !== "all") {
-        const categoryId = CATEGORY_MAP[activeCategory];
-        if (categoryId) {
-          query = query.eq("category_id", categoryId);
-        }
-      }
-
-      const { data, error } = await query;
 
       if (!error && data) {
         const formatted = (data as unknown as SupabasePrompt[]).map((p) => ({
@@ -93,7 +85,7 @@ export default function HomePage() {
     };
 
     fetchPrompts();
-  }, [activeCategory]);
+  }, []);
 
   const handleSave = (id: string) => {
     const prompt = prompts.find((p) => p.id === id);
@@ -119,11 +111,17 @@ export default function HomePage() {
     await supabase.rpc("increment_view", { prompt_id: id });
   };
 
+  const handleCategoryChange = (cat: string) => {
+    if (cat === "all") return;
+    router.push(`/${cat}`);
+  };
+
   return (
     <div className="min-h-screen">
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium mb-4">
             <Sparkles className="w-4 h-4" />
@@ -138,10 +136,12 @@ export default function HomePage() {
           </p>
         </div>
 
+        {/* Category Filter */}
         <div className="mb-8">
-          <CategoryFilter active={activeCategory} onChange={setActiveCategory} />
+          <CategoryFilter active="all" onChange={handleCategoryChange} />
         </div>
 
+        {/* Loading */}
         {loading && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {[...Array(8)].map((_, i) => (
@@ -159,6 +159,7 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Grid */}
         {!loading && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {prompts.map((prompt) => (
@@ -176,7 +177,7 @@ export default function HomePage() {
         {!loading && prompts.length === 0 && (
           <div className="text-center py-20 text-muted-foreground">
             <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-20" />
-            <p>No prompts found in this category!</p>
+            <p>No prompts found!</p>
           </div>
         )}
       </main>

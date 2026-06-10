@@ -33,46 +33,57 @@ export default function GeneratePage() {
   };
 
   const handleGenerate = async () => {
-    if (!prompt.trim()) {
-      toast.error("Please enter a prompt!");
-      return;
-    }
+  if (!prompt.trim()) {
+    toast.error("Please enter a prompt!");
+    return;
+  }
 
-    setLoading(true);
-    setGeneratedImage(null);
+  setLoading(true);
+  setGeneratedImage(null);
 
-    try {
-      const response = await fetch("/api/generate", {
+  try {
+    const response = await fetch(
+      "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
+      {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, imageBase64: uploadedImageBase64 }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Generation failed");
+        headers: {
+          "Authorization": `Bearer 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`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          inputs: prompt,
+        }),
       }
+    );
 
-      setGeneratedImage(data.imageUrl);
-      toast.success("Image generated!");
-    } catch (err: unknown) {
-      const error = err as { message?: string };
-      toast.error(error.message || "Something went wrong!");
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed: ${error}`);
     }
-  };
 
-  const handleDownload = async () => {
-    if (!generatedImage) return;
-    const link = document.createElement("a");
-    link.href = generatedImage;
-    link.target = "_blank";
-    link.download = `promptclick-${Date.now()}.png`;
-    link.click();
-    toast.success("Image downloading!");
-  };
+    const blob = await response.blob();
+    const imageUrl = URL.createObjectURL(blob);
+    setGeneratedImage(imageUrl);
+    toast.success("Image generated!");
+  } catch (err: unknown) {
+    const error = err as { message?: string };
+    toast.error(error.message || "Something went wrong!");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  const handleDownload = () => {
+  if (!generatedImage) return;
+  const link = document.createElement("a");
+  link.href = generatedImage;
+  link.download = `promptclick-${Date.now()}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  toast.success("Image downloaded!");
+};
 
   const removeUploadedImage = () => {
     setUploadedImage(null);
@@ -193,11 +204,18 @@ export default function GeneratePage() {
               <div className="flex-1 flex flex-col gap-3">
                 <div className="relative flex-1 min-h-64 rounded-xl overflow-hidden">
                   <img
-                    src={generatedImage}
-                    alt="generated"
-                    className="w-full h-full object-contain"
-                    onError={() => toast.error("Image load failed!")}
-                  />
+  src={generatedImage}
+  alt="generated"
+  className="w-full h-full object-contain"
+  onLoad={() => toast.success("Ready!")}
+  onError={(e) => {
+    const target = e.target as HTMLImageElement;
+    // Retry once
+    const url = target.src;
+    target.src = "";
+    setTimeout(() => { target.src = url; }, 2000);
+  }}
+/>
                 </div>
                 <Button
                   onClick={handleDownload}
